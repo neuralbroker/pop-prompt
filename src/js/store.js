@@ -1,17 +1,11 @@
-const STORAGE_KEY = 'poprompt-prompts'
-
 const Store = {
   data: { prompts: [] },
-  _writeTimer: null,
+  _writeQueue: Promise.resolve(),
 
-  load() {
+  async load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (!raw) {
-        this.data = { prompts: [] }
-        return this.data
-      }
-      this.data = JSON.parse(raw)
+      const result = await window.api.getPrompts()
+      this.data = result
       if (!Array.isArray(this.data.prompts)) {
         this.data.prompts = []
       }
@@ -25,29 +19,14 @@ const Store = {
   },
 
   save() {
-    clearTimeout(this._writeTimer)
-    this._writeTimer = setTimeout(() => {
+    this._writeQueue = this._writeQueue.then(async () => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data))
+        await window.api.savePrompts(this.data)
       } catch (err) {
         console.error('Failed to save prompts:', err)
-        this._showQuotaError()
       }
-    }, 150)
-  },
-
-  _showQuotaError() {
-    const toast = document.createElement('div')
-    toast.className = 'toast'
-    toast.textContent = 'Storage full. Please delete some prompts.'
-    const container = document.getElementById('toast-container')
-    if (container) {
-      container.appendChild(toast)
-      setTimeout(() => {
-        toast.classList.add('toast-out')
-        toast.addEventListener('animationend', () => toast.remove())
-      }, 3000)
-    }
+    })
+    return this._writeQueue
   },
 
   create(name, content, tags) {
